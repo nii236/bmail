@@ -1,0 +1,27 @@
+[General]
+Debug = true
+RespondToInvalid = true
+ProcessInterval = 10
+
+[Bitmessage]
+Conn = ''
+Username = "devdev"
+Password = "devdev"
+Host = "127.0.0.1"
+Port = "8442"
+
+[Storage]
+MailFolder = '/home/bitmessage/MailDir/new/'
+LogFilename = '/var/log/bitmessage-gateway.log'
+
+[Server]
+DomainName = 'bmail.dev'
+
+[Addresses]
+ReceivingAddressLabel = 'bmail.dev Generic Receive Address'
+SendingAddressLabel = 'bmail.dev Generic Sender Address'
+RegistrationAddressLabel = 'bmail.dev Registration Address'
+DeregistrationAddressLabel = 'bmail.dev Deregistration Address'
+BugReportAddressBitmessage = 'you-bitmessage-address'
+BugReportAddressEmail = 'your-email'
+
