@@ -1,13 +1,15 @@
 package main
 
 import (
+	"bmail/db"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kolo/xmlrpc"
+	"github.com/volatiletech/sqlboiler/boil"
 )
 
 type Controller struct {
@@ -15,23 +17,14 @@ type Controller struct {
 }
 
 func Listen() {
-	ticker := time.NewTicker(1 * time.Second)
-
+	wg := &sync.WaitGroup{}
 	for {
-		select {
-		case <-ticker.C:
-			log.Info("Run ticker")
-			_, err := os.Stat("/home/nii236/newmessage.lock")
-			if err != nil {
-				continue
-			}
-			err = os.Remove("/home/nii236/newmessage.lock")
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-			CheckMessages()
-		}
+		wg.Add(1)
+		fmt.Println("CHECKING")
+		CheckMessages()
+		wg.Done()
+		wg.Wait()
+		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -56,15 +49,17 @@ func CheckMessages() {
 	}
 
 	var resultStr string
-	err = client.Call("getAllInboxMessages", nil, &resultStr)
+	err = client.Call("getAllInboxMessageIDs", nil, &resultStr)
 	if err != nil {
 		log.Error(err)
 		return
 	}
 	result := &Result{}
-	json.NewDecoder(strings.NewReader(resultStr)).Decode(result)
-	// fmt.Println("RPC RESPONSE:", resultStr)
-	// fmt.Println("RPC RESPONSE:", result)
+	err = json.NewDecoder(strings.NewReader(resultStr)).Decode(result)
+	if err != nil {
+		log.Error(err)
+		return
+	}
 
 	for _, msg := range result.InboxMessages {
 		config := GetConfig()
@@ -76,19 +71,13 @@ func CheckMessages() {
 			fmt.Println("Processing Receiving")
 		case config.Addresses.DeregistrationAddress:
 			fmt.Println("Processing Deregistration")
-			_, err = UnregisterUser.Exec(map[string]interface{}{
-				"bitmessage_id": msg.FromAddress,
-			})
 		case config.Addresses.RegistrationAddress:
 			fmt.Println("Processing Registration")
-			_, err = RegisterUser.Exec(map[string]interface{}{
-				"username":      msg.Subject,
-				"bitmessage_id": msg.FromAddress,
-			})
-			if err != nil {
-				log.Error(err)
-				return
-			}
 		}
+		msg := &db.ProcessedMessage{
+			MessageID: msg.Msgid,
+		}
+		msg.Insert(conn, boil.Infer())
+
 	}
 }

@@ -1,0 +1,6 @@
+output = "db"
+pkgname = "db"
+no-context = true
+
+[sqlite3]
+dbname = "bmail.db"
