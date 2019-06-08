@@ -10,7 +10,9 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// Service holds the service state
 type Service struct {
+	log         *log.Logger
 	name        string
 	description string
 	quit        chan bool
@@ -22,6 +24,7 @@ type Service struct {
 // New creates a new service
 func New() service.S {
 	s := &Service{
+		log:         log.NewToFile("./bmail-clean.log"),
 		name:        "clean",
 		description: "Removes messages that aren't bound for any registered BitMessage user",
 		quit:        make(chan bool),
@@ -44,7 +47,7 @@ func (s *Service) Description() string {
 
 // Start will start the service
 func (s *Service) Start() {
-	log.Infow("Starting service",
+	s.log.Infow("Starting service",
 		"name", s.name,
 	)
 	go func() {
