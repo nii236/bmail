@@ -1,3 +1,5 @@
 bin-bmail
 bmail.db
 .vscode
+config.toml
+*.log
