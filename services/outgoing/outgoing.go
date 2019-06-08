@@ -2,22 +2,21 @@ package outgoing
 
 import (
 	"bmail/db"
+	"bmail/internal/pkg/bitmessage"
 	"bmail/internal/pkg/config"
 	"bmail/internal/pkg/conn"
 	"bmail/internal/pkg/log"
 	"bmail/internal/pkg/service"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/kolo/xmlrpc"
 	"github.com/volatiletech/sqlboiler/boil"
 )
 
 // Service holds the service state
 type Service struct {
+	bmclient    *bitmessage.Client
 	log         *log.Logger
 	name        string
 	description string
@@ -29,8 +28,14 @@ type Service struct {
 
 // New creates a new service
 func New() service.S {
+	logger := log.NewToFile("./bmail-outgoing.log")
+	bmclient, err := bitmessage.New(logger)
+	if err != nil {
+		logger.Fatal(err)
+	}
 	s := &Service{
-		log:         log.NewToFile("./bmail-outgoing.log"),
+		bmclient:    bmclient,
+		log:         logger,
 		name:        "outgoing",
 		description: "Handles outgoing messages from a BitMessage user",
 		quit:        make(chan bool),
@@ -75,51 +80,17 @@ func (s *Service) Stop() {
 	<-s.stopped
 }
 
-func (s *Service) checkMessages() {
-	client, err := xmlrpc.NewClient("http://devdev:devdev@localhost:8442", nil)
+func (s *Service) checkMessages() error {
+	msgs, err := s.bmclient.GetAllMessages()
 	if err != nil {
-		s.log.Error(err)
-		return
+		return err
 	}
-	defer client.Close()
-	type Result struct {
-		InboxMessages []struct {
-			EncodingType int    `json:"encodingType"`
-			ToAddress    string `json:"toAddress"`
-			Read         int    `json:"read"`
-			Msgid        string `json:"msgid"`
-			Message      string `json:"message"`
-			FromAddress  string `json:"fromAddress"`
-			ReceivedTime string `json:"receivedTime"`
-			Subject      string `json:"subject"`
-		} `json:"inboxMessages"`
-	}
-
-	var resultStr string
-	err = client.Call("getAllInboxMessageIDs", nil, &resultStr)
-	if err != nil {
-		s.log.Error(err)
-		return
-	}
-	result := &Result{}
-	err = json.NewDecoder(strings.NewReader(resultStr)).Decode(result)
-	if err != nil {
-		s.log.Error(err)
-		return
-	}
-
-	for _, msg := range result.InboxMessages {
+	for _, msg := range msgs {
 
 		fmt.Println("Processing")
 		switch msg.ToAddress {
-		case s.config.Addresses.SendingAddress:
-			fmt.Println("Processing Sending")
 		case s.config.Addresses.ReceivingAddress:
 			fmt.Println("Processing Receiving")
-		case s.config.Addresses.DeregistrationAddress:
-			fmt.Println("Processing Deregistration")
-		case s.config.Addresses.RegistrationAddress:
-			fmt.Println("Processing Registration")
 		}
 		msg := &db.ProcessedMessage{
 			MessageID: msg.Msgid,
@@ -127,4 +98,5 @@ func (s *Service) checkMessages() {
 		msg.Insert(s.conn, boil.Infer())
 
 	}
+	return nil
 }

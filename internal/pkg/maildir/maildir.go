@@ -1,14 +1,12 @@
-package maildir
+package bmaildir
 
 import (
-	"path/filepath"
-
 	"github.com/luksen/maildir"
 )
 
 // Open will open or create a maildir with a basepath and given username
-func Open(maildirPath string, username string) (maildir.Dir, error) {
-	dir := maildir.Dir(filepath.Join(maildirPath, username))
+func Open(maildirPath string) (maildir.Dir, error) {
+	dir := maildir.Dir(maildirPath)
 	err := dir.Create()
 	if err != nil {
 		return "", err

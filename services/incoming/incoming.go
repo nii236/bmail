@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/volatiletech/sqlboiler/queries/qm"
 )
 
 // Service holds the service state
@@ -74,22 +75,34 @@ func (s *Service) Stop() {
 
 func (s *Service) checkNew() error {
 	s.log.Infow("Checking for new incoming mail...")
-	users, err := db.Users().All(s.conn)
+	dir, err := bmaildir.Open(s.config.Storage.MailFolder)
 	if err != nil {
 		return err
 	}
-	for _, u := range users {
-		dir, err := maildir.Open(s.config.Storage.MailFolder, u.Username)
-		if err != nil {
-			return err
-		}
-		s.log.Infow("Opened dir", "username", u.Username, "dir", dir)
+	s.log.Infow("Opened maildir", "dir", dir)
 
-		newIDs, err := maildir.ReadNew(dir)
+	newIDs, err := bmaildir.ReadNew(dir)
+	if err != nil {
+		return err
+	}
+	s.log.Infow("Found new mail", "ids", newIDs)
+	for _, id := range newIDs {
+		msg, err := dir.Message(id)
 		if err != nil {
 			return err
 		}
-		s.log.Infow("Found new mail", "ids", newIDs)
+		to := msg.Header.Get("To")
+		exists, err := db.Users(qm.Where("username = ?", to)).Exists(s.conn)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			s.log.Debug("recipient for email does not exist, continuing...")
+			continue
+		}
+
+		// Forward message to BitMessage user here
 	}
+
 	return nil
 }
