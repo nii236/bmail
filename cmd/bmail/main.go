@@ -9,6 +9,7 @@ import (
 	"bmail/services/clean"
 	"bmail/services/incoming"
 	"bmail/services/outgoing"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -18,22 +19,24 @@ import (
 )
 
 var fqdn *string
-
+var configPath *string
 var app *kingpin.Application
 
 func init() {
 
 	app = kingpin.New("bmail", "An email gateway for Bitmessage")
 	fqdn = app.Flag("fqdn", "Set FQDN.").Default("mail.nii236-work.local").String()
-	log.New(false)
+	configPath = app.Flag("config", "Set config path.").Default("./config.toml").String()
+	log.NewToFile("./bmail.log")
 
 }
 
 func main() {
+	fmt.Println("Bmail is running...")
 	app.Parse(os.Args[1:])
 
 	conn.New()
-	config.New()
+	config.New(*configPath)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -59,12 +62,11 @@ func signalClose(services ...service.S) {
 	go func() {
 		select {
 		case <-c:
-
-			log.Info("Received interrupt, stopping all services...")
+			fmt.Println("Received interrupt, stopping all services...")
 			for _, s := range services {
 				s.Stop()
 			}
-			log.Info("Stopped.")
+			fmt.Println("Stopped.")
 			os.Exit(0)
 		}
 	}()
