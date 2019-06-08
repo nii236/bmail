@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
+	github.com/casbin/casbin v1.8.2
 	github.com/gofrs/uuid v3.2.0+incompatible // indirect
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/kolo/xmlrpc v0.0.0-20190514182600-74b23a09d7ea
@@ -13,6 +14,7 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nsf/gocode v0.0.0-20190302080247-5bee97b48836 // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/prometheus/common v0.4.0
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/uber-go/zap v1.10.0

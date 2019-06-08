@@ -1,4 +1,3 @@
-bin
-bitportal.db
-bmail
+bin-bmail
 bmail.db
+.vscode
