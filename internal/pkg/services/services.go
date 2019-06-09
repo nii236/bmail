@@ -1,9 +1,8 @@
-package service
+package services
 
 // S are long running services for bmail
 type S interface {
-	Start()
-	Stop()
+	Run() error
 	Name() string
 	Description() string
 }

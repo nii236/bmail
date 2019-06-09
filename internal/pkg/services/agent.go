@@ -1,17 +1,18 @@
-package agent
+package services
 
 import (
 	"bmail/internal/pkg/config"
 	"bmail/internal/pkg/conn"
 	"bmail/internal/pkg/log"
-	"bmail/internal/pkg/service"
+
+	"context"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 )
 
-// Service holds the service state
-type Service struct {
+// Agent holds the service state
+type Agent struct {
 	log         *log.Logger
 	name        string
 	description string
@@ -19,11 +20,13 @@ type Service struct {
 	conn        *sqlx.DB
 	config      *config.C
 	stopped     chan bool
+	ctx         context.Context
 }
 
-// New creates a new service
-func New() service.S {
-	s := &Service{
+// NewAgent creates a new service
+func NewAgent(ctx context.Context) S {
+	s := &Agent{
+		ctx:         ctx,
 		log:         log.NewToFile("./bmail-agent.log"),
 		name:        "agent",
 		description: "Admin RPC between BitMessage and Bmail",
@@ -35,41 +38,42 @@ func New() service.S {
 	return s
 }
 
-// Name returns the name of the service
-func (s *Service) Name() string {
+// Name of the service
+func (s *Agent) Name() string {
 	return s.name
 }
 
-// Description returns the description of the service
-func (s *Service) Description() string {
+// Description of the service
+func (s *Agent) Description() string {
 	return s.description
 }
 
-// Start will start the service
-func (s *Service) Start() {
+// Run the service
+func (s *Agent) Run() error {
 	s.log.Infow("Starting service",
 		"name", s.name,
 	)
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		for {
-			select {
-			case <-ticker.C:
-				s.checkMessages()
-			case <-s.quit:
-				s.stopped <- true
-				return
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			err := s.checkMessages()
+			if err != nil {
+				return err
 			}
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+
 		}
-	}()
+	}
 }
 
-// Stop will stop the service
-func (s *Service) Stop() {
+// Stop the service
+func (s *Agent) Stop() {
 	s.quit <- true
 	<-s.stopped
 }
 
-func (s *Service) checkMessages() {
-
+func (s *Agent) checkMessages() error {
+	return nil
 }

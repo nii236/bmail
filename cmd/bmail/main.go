@@ -4,18 +4,17 @@ import (
 	"bmail/internal/pkg/config"
 	"bmail/internal/pkg/conn"
 	"bmail/internal/pkg/log"
-	"bmail/internal/pkg/service"
-	"bmail/services/agent"
-	"bmail/services/clean"
-	"bmail/services/incoming"
-	"bmail/services/outgoing"
+	"bmail/internal/pkg/services"
+
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
+	"syscall"
 
 	"github.com/alecthomas/kingpin"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/oklog/run"
 )
 
 var fqdn *string
@@ -38,36 +37,55 @@ func main() {
 	conn.New()
 	config.New(*configPath)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	var g run.Group
+	ctx, cancel := context.WithCancel(context.Background())
 
-	c := clean.New()
-	c.Start()
-	i := incoming.New()
-	i.Start()
-	o := outgoing.New()
-	o.Start()
-	a := agent.New()
-	a.Start()
-
-	signalClose(c, i, o, a)
-
-	wg.Wait()
-
-}
-
-func signalClose(services ...service.S) {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
+	g.Add(func() error {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 		select {
-		case <-c:
-			fmt.Println("Received interrupt, stopping all services...")
-			for _, s := range services {
-				s.Stop()
-			}
-			fmt.Println("Stopped.")
-			os.Exit(0)
+		case sig := <-c:
+			return fmt.Errorf("received signal %s", sig)
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-	}()
+	}, func(error) {
+		cancel()
+	})
+
+	g.Add(func() error {
+		c := services.NewClean(ctx, &services.CleanOpts{
+			Log:         log.NewToFile("./bmail-clean.log"),
+			Name:        "clean",
+			Description: "Removes messages that aren't bound for any registered BitMessage user",
+			Quit:        make(chan bool),
+			Stopped:     make(chan bool),
+			Conn:        conn.Get(),
+			Config:      config.Get(),
+		})
+		return c.Run()
+	}, func(err error) {
+		cancel()
+	})
+	g.Add(func() error {
+		a := services.NewAgent(ctx)
+		return a.Run()
+	}, func(err error) {
+		cancel()
+	})
+	g.Add(func() error {
+		i := services.NewIncoming(ctx)
+		return i.Run()
+	}, func(err error) {
+		cancel()
+	})
+	g.Add(func() error {
+		o := services.NewOutgoing(ctx)
+		return o.Run()
+	}, func(err error) {
+		cancel()
+	})
+
+	fmt.Println(g.Run())
+
 }

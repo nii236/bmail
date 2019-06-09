@@ -1,4 +1,4 @@
-package outgoing
+package services
 
 import (
 	"bmail/db"
@@ -6,7 +6,8 @@ import (
 	"bmail/internal/pkg/config"
 	"bmail/internal/pkg/conn"
 	"bmail/internal/pkg/log"
-	"bmail/internal/pkg/service"
+
+	"context"
 	"fmt"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 	"github.com/volatiletech/sqlboiler/boil"
 )
 
-// Service holds the service state
-type Service struct {
+// Outgoing holds the service state
+type Outgoing struct {
 	bmclient    *bitmessage.Client
 	log         *log.Logger
 	name        string
@@ -24,16 +25,18 @@ type Service struct {
 	stopped     chan bool
 	conn        *sqlx.DB
 	config      *config.C
+	ctx         context.Context
 }
 
-// New creates a new service
-func New() service.S {
+// NewOutgoing creates a new service
+func NewOutgoing(ctx context.Context) S {
 	logger := log.NewToFile("./bmail-outgoing.log")
 	bmclient, err := bitmessage.New(logger)
 	if err != nil {
 		logger.Fatal(err)
 	}
-	s := &Service{
+	s := &Outgoing{
+		ctx:         ctx,
 		bmclient:    bmclient,
 		log:         logger,
 		name:        "outgoing",
@@ -46,41 +49,38 @@ func New() service.S {
 	return s
 }
 
-// Name returns the name of the service
-func (s *Service) Name() string {
+// Name of the service
+func (s *Outgoing) Name() string {
 	return s.name
 }
 
-// Description returns the description of the service
-func (s *Service) Description() string {
+// Description of the service
+func (s *Outgoing) Description() string {
 	return s.description
 }
 
-// Start will start the service
-func (s *Service) Start() {
+// Run will start the service
+func (s *Outgoing) Run() error {
 	s.log.Infow("Starting service",
 		"name", s.name,
 	)
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		for {
-			select {
-			case <-ticker.C:
-			case <-s.quit:
-				s.stopped <- true
-				return
-			}
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+		case <-s.ctx.Done():
+			return s.ctx.Err()
 		}
-	}()
+	}
 }
 
 // Stop will stop the service
-func (s *Service) Stop() {
+func (s *Outgoing) Stop() {
 	s.quit <- true
 	<-s.stopped
 }
 
-func (s *Service) checkMessages() error {
+func (s *Outgoing) checkMessages() error {
 	msgs, err := s.bmclient.GetAllMessages()
 	if err != nil {
 		return err

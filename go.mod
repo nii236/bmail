@@ -15,6 +15,7 @@ require (
 	github.com/nats-io/nats-server v1.4.1
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nsf/gocode v0.0.0-20190302080247-5bee97b48836 // indirect
+	github.com/oklog/run v1.0.0
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/common v0.4.0
 	github.com/spf13/viper v1.4.0

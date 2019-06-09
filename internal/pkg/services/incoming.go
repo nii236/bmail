@@ -1,20 +1,21 @@
-package incoming
+package services
 
 import (
 	"bmail/db"
+	"bmail/internal/pkg/bmaildir"
 	"bmail/internal/pkg/config"
 	"bmail/internal/pkg/conn"
 	"bmail/internal/pkg/log"
-	"bmail/internal/pkg/maildir"
-	"bmail/internal/pkg/service"
+
+	"context"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/volatiletech/sqlboiler/queries/qm"
 )
 
-// Service holds the service state
-type Service struct {
+// Incoming holds the service state
+type Incoming struct {
 	log         *log.Logger
 	name        string
 	description string
@@ -22,11 +23,13 @@ type Service struct {
 	stopped     chan bool
 	conn        *sqlx.DB
 	config      *config.C
+	ctx         context.Context
 }
 
-// New creates a new service
-func New() service.S {
-	s := &Service{
+// NewIncoming creates a new service
+func NewIncoming(ctx context.Context) S {
+	s := &Incoming{
+		ctx:         ctx,
 		log:         log.NewToFile("./bmail-incoming.log"),
 		name:        "incoming",
 		description: "Handles incoming messages bound for a BitMessage user",
@@ -38,42 +41,43 @@ func New() service.S {
 	return s
 }
 
-// Name returns the name of the service
-func (s *Service) Name() string {
+// Name of the service
+func (s *Incoming) Name() string {
 	return s.name
 }
 
-// Description returns the description of the service
-func (s *Service) Description() string {
+// Description of the service
+func (s *Incoming) Description() string {
 	return s.description
 }
 
-// Start will start the service
-func (s *Service) Start() {
+// Run the service
+func (s *Incoming) Run() error {
 	s.log.Infow("Starting service",
 		"name", s.name,
 	)
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		for {
-			select {
-			case <-ticker.C:
-				s.checkNew()
-			case <-s.quit:
-				s.stopped <- true
-				return
+
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			err := s.checkNew()
+			if err != nil {
+				return err
 			}
+		case <-s.ctx.Done():
+			return s.ctx.Err()
 		}
-	}()
+	}
 }
 
 // Stop will stop the service
-func (s *Service) Stop() {
+func (s *Incoming) Stop() {
 	s.quit <- true
 	<-s.stopped
 }
 
-func (s *Service) checkNew() error {
+func (s *Incoming) checkNew() error {
 	s.log.Infow("Checking for new incoming mail...")
 	dir, err := bmaildir.Open(s.config.Storage.MailFolder)
 	if err != nil {
